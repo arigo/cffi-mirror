@@ -30,10 +30,19 @@ steps:
 - script: |
     set -e    # stop on any error
     python -m pip install --upgrade pip
-    python -m pip install --upgrade setuptools wheel
+    python -m pip install --upgrade setuptools wheel twine
     pip install -r requirements.txt
   displayName: 'Install dependencies'
 
 - script: |
     python setup.py bdist_wheel
   displayName: 'Build C extension'
+
+- task: TwineAuthenticate@1
+  inputs:
+    # In this case, name of the service connection is "pypi".
+    pythonUploadServiceConnection: pypi
+  displayName: 'Twine Authenticate'
+
+- script: |
+    python -m twine upload dist/*.whl
