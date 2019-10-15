@@ -30,7 +30,7 @@ steps:
 - script: |
     set -e    # stop on any error
     python -m pip install --upgrade pip
-    python -m pip install --upgrade setuptools wheel twine
+    python -m pip install --upgrade setuptools wheel
     pip install -r requirements.txt
   displayName: 'Install dependencies'
 
@@ -38,11 +38,7 @@ steps:
     python setup.py bdist_wheel
   displayName: 'Build C extension'
 
-- task: TwineAuthenticate@1
+- task: PublishBuildArtifacts@1
   inputs:
-    # In this case, name of the service connection is "pypi".
-    pythonUploadServiceConnection: pypi
-  displayName: 'Twine Authenticate'
-
-- script: |
-    python -m twine upload dist/*.whl
+    pathToPublish: dist/
+    artifactName: cffi-linux-python$(python.version)
