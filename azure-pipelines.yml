@@ -31,6 +31,7 @@ steps:
     set -e    # stop on any error
     python -m pip install --upgrade pip
     python -m pip install --upgrade setuptools wheel
+    python3 -m pip install auditwheel
     pip install -r requirements.txt
   displayName: 'Install dependencies'
 
@@ -38,7 +39,10 @@ steps:
     python setup.py bdist_wheel
   displayName: 'Build C extension'
 
+- script: python3 -m auditwheel repair dist/*.whl -w wheelhouse/
+  displayName: Run auditwheel
+
 - task: PublishBuildArtifacts@1
   inputs:
-    pathToPublish: dist/
+    pathToPublish: wheelhouse/
     artifactName: cffi-build
