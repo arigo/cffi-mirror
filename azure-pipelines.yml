@@ -31,9 +31,10 @@ steps:
     set -e    # stop on any error
     python -m pip install --upgrade pip
     python -m pip install --upgrade setuptools wheel
-    python3 -m pip install --upgrade pip
-    python3 -m pip install --upgrade setuptools wheel
-    python3 -m pip install --upgrade auditwheel
+    python3.6 -m pip install --user --upgrade pip
+    python3.6 -m pip install --user --upgrade setuptools wheel
+    apt-get install patchelf
+    python3.6 -m pip install --user --upgrade auditwheel
     pip install -r requirements.txt
   displayName: 'Install dependencies'
 
@@ -41,7 +42,7 @@ steps:
     python setup.py bdist_wheel
   displayName: 'Build C extension'
 
-- script: python3 -m auditwheel repair dist/*.whl -w wheelhouse/
+- script: python3.6 -m auditwheel repair dist/*.whl -w wheelhouse/
   displayName: Run auditwheel
 
 - task: PublishBuildArtifacts@1
