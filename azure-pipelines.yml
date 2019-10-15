@@ -7,7 +7,7 @@ trigger:
 - master
 
 pool:
-  vmImage: 'ubuntu-latest'
+  vmImage: 'ubuntu-16.04'
 strategy:
   matrix:
     Python27:
@@ -20,8 +20,6 @@ strategy:
       python.version: '3.6'
     Python37:
       python.version: '3.7'
-    Python38:
-      python.version: '3.8'
 
 steps:
 - task: UsePythonVersion@0
@@ -30,11 +28,11 @@ steps:
   displayName: 'Use Python $(python.version)'
 
 - script: |
+    set -e    # stop on any error
     python -m pip install --upgrade pip
     pip install -r requirements.txt
   displayName: 'Install dependencies'
 
 - script: |
-    pip install pytest pytest-azurepipelines
-    pytest
-  displayName: 'pytest'
+    python setup.py build
+  displayName: 'Build C extension'
