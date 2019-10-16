@@ -33,9 +33,8 @@ jobs:
     - script: choco install vcpython27 -f -y
       displayName: Install Visual C++ for Python 2.7
     - bash: |
-        apt-get install libffi-dev
         python -m pip install --upgrade pip
         pip install cibuildwheel==0.12.0
-        cibuildwheel --output-dir wheelhouse .
+        CIBW_BEFORE_BUILD="yum install -y libffi libffi-devel" cibuildwheel --output-dir wheelhouse .
     - task: PublishBuildArtifacts@1
       inputs: {pathtoPublish: 'wheelhouse'}
