@@ -2991,6 +2991,10 @@ cdata_call(CDataObject *cd, PyObject *args, PyObject *kwds)
     CTypeDescrObject *fresult;
     char *resultdata;
     char *errormsg;
+    struct freeme_s {
+        struct freeme_s *next;
+        union_alignment alignment;
+    } *freeme = NULL;
 
     if (!(cd->c_type->ct_flags & CT_FUNCTIONPTR)) {
         PyErr_Format(PyExc_TypeError, "cdata '%s' is not callable",
@@ -3111,7 +3115,21 @@ cdata_call(CDataObject *cd, PyObject *args, PyObject *kwds)
             else if (datasize < 0)
                 goto error;
             else {
-                tmpbuf = alloca(datasize);
+                if (datasize <= 512) {
+                    tmpbuf = alloca(datasize);
+                }
+                else {
+                    struct freeme_s *fp = (struct freeme_s *)PyObject_Malloc(
+                        offsetof(struct freeme_s, alignment) +
+                        (size_t)datasize);
+                    if (fp == NULL) {
+                        PyErr_NoMemory();
+                        goto error;
+                    }
+                    fp->next = freeme;
+                    freeme = fp;
+                    tmpbuf = (char *)&fp->alignment;
+                }
                 memset(tmpbuf, 0, datasize);
                 *(char **)data = tmpbuf;
                 if (convert_array_from_object(tmpbuf, argtype, obj) < 0)
@@ -3156,6 +3174,11 @@ cdata_call(CDataObject *cd, PyObject *args, PyObject *kwds)
     /* fall-through */
 
  error:
+    while (freeme != NULL) {
+        void *p = (void *)freeme;
+        freeme = freeme->next;
+        PyObject_Free(p);
+    }
     if (buffer)
         PyObject_Free(buffer);
     if (fvarargs != NULL) {
@@ -4201,11 +4224,12 @@ typedef struct {
     PyObject_HEAD
     void *dl_handle;
     char *dl_name;
+    int dl_auto_close;
 } DynLibObject;
 
 static void dl_dealloc(DynLibObject *dlobj)
 {
-    if (dlobj->dl_handle != NULL)
+    if (dlobj->dl_handle != NULL && dlobj->dl_auto_close)
         dlclose(dlobj->dl_handle);
     free(dlobj->dl_name);
     PyObject_Del(dlobj);
@@ -4370,7 +4394,7 @@ static PyTypeObject dl_type = {
 };
 
 static void *b_do_dlopen(PyObject *args, const char **p_printable_filename,
-                         PyObject **p_temp)
+                         PyObject **p_temp, int *auto_close)
 {
     /* Logic to call the correct version of dlopen().  Returns NULL in case of error.
        Otherwise, '*p_printable_filename' will point to a printable char version of
@@ -4381,6 +4405,7 @@ static void *b_do_dlopen(PyObject *args, const char **p_printable_filename,
     char *filename_or_null;
     int flags = 0;
     *p_temp = NULL;
+    *auto_close = 1;
     
     if (PyTuple_GET_SIZE(args) == 0 || PyTuple_GET_ITEM(args, 0) == Py_None) {
         PyObject *dummy;
@@ -4389,6 +4414,28 @@ static void *b_do_dlopen(PyObject *args, const char **p_printable_filename,
             return NULL;
         filename_or_null = NULL;
         *p_printable_filename = "<None>";
+    }
+    else if (CData_Check(PyTuple_GET_ITEM(args, 0)))
+    {
+        CDataObject *cd;
+        if (!PyArg_ParseTuple(args, "O|i:load_library", &cd, &flags))
+            return NULL;
+        /* 'flags' is accepted but ignored in this case */
+        if ((cd->c_type->ct_flags & CT_IS_VOID_PTR) == 0) {
+            PyErr_Format(PyExc_TypeError,
+                "dlopen() takes a file name or 'void *' handle, not '%s'",
+                cd->c_type->ct_name);
+            return NULL;
+        }
+        handle = cd->c_data;
+        if (handle == NULL) {
+            PyErr_Format(PyExc_RuntimeError, "cannot call dlopen(NULL)");
+            return NULL;
+        }
+        *p_temp = PyText_FromFormat("%p", handle);
+        *p_printable_filename = PyText_AsUTF8(*p_temp);
+        *auto_close = 0;
+        return handle;
     }
     else
     {
@@ -4451,8 +4498,9 @@ static PyObject *b_load_library(PyObject *self, PyObject *args)
     PyObject *temp;
     void *handle;
     DynLibObject *dlobj = NULL;
+    int auto_close;
 
-    handle = b_do_dlopen(args, &printable_filename, &temp);
+    handle = b_do_dlopen(args, &printable_filename, &temp, &auto_close);
     if (handle == NULL)
         goto error;
 
@@ -4463,6 +4511,7 @@ static PyObject *b_load_library(PyObject *self, PyObject *args)
     }
     dlobj->dl_handle = handle;
     dlobj->dl_name = strdup(printable_filename);
+    dlobj->dl_auto_close = auto_close;
  
  error:
     Py_XDECREF(temp);
@@ -4974,8 +5023,8 @@ static int detect_custom_layout(CTypeDescrObject *ct, int sflags,
         if (sflags & SF_STD_FIELD_POS) {
             PyErr_Format(FFIError,
                          "%s: %s%s%s (cdef says %zd, but C compiler says %zd)."
-                         " fix it or use \"...;\" in the cdef for %s to "
-                         "make it flexible",
+                         " fix it or use \"...;\" as the last field in the "
+                         "cdef for %s to make it flexible",
                          ct->ct_name, msg1, txt, msg2,
                          cdef_value, compiler_value,
                          ct->ct_name);
