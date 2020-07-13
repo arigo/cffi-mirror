@@ -1,0 +1,12 @@
+dist: focal
+arch: arm64-graviton2
+virt: lxd
+group: edge
+language: python
+services:
+  - docker
+script:
+  - python -m pip install --upgrade pip
+  - pip install cibuildwheel==1.5.5
+  - CIBW_MANYLINUX_AARCH64_IMAGE=manylinux2014 CIBW_BEFORE_BUILD='yum install -y texinfo && curl -L -O https://github.com/libffi/libffi/archive/v3.3.tar.gz && tar zxf v3.3.tar.gz && cd libffi-3.3 && ./autogen.sh && ./configure && make && make install && ldconfig' CIBW_TEST_REQUIRES=pytest CIBW_TEST_COMMAND='python -m pytest {project}/c {project}/testing' cibuildwheel --output-dir wheelhouse .
+  # FIXME: push artifacts somewhere
