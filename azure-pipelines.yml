@@ -5,9 +5,9 @@ jobs:
     - task: UsePythonVersion@0
     - bash: |
         python -m pip install --upgrade pip
-        #pip install cibuildwheel==0.12.0
-        pip install git+https://github.com/joerick/cibuildwheel.git
-        CIBW_MANYLINUX_X86_64_IMAGE=manylinux1 CIBW_MANYLINUX_I686_IMAGE=manylinux1 CIBW_BEFORE_BUILD='yum install -y texinfo && curl -L -O https://github.com/libffi/libffi/archive/v3.2.1.tar.gz && tar zxf v3.2.1.tar.gz && cd libffi-3.2.1 && ./autogen.sh && ./configure && make && make install && ldconfig' CIBW_TEST_REQUIRES=pytest CIBW_TEST_COMMAND='python -m pytest {project}/c {project}/testing' cibuildwheel --output-dir wheelhouse .
+        pip install cibuildwheel
+        #pip install git+https://github.com/joerick/cibuildwheel.git
+        CIBW_SKIP='pp*' CIBW_MANYLINUX_X86_64_IMAGE=manylinux1 CIBW_MANYLINUX_I686_IMAGE=manylinux1 CIBW_BEFORE_BUILD='yum install -y texinfo && curl -L -O https://github.com/libffi/libffi/archive/v3.2.1.tar.gz && tar zxf v3.2.1.tar.gz && cd libffi-3.2.1 && ./autogen.sh && ./configure && make && make install && ldconfig' CIBW_TEST_REQUIRES=pytest CIBW_TEST_COMMAND='python -m pytest {project}/c {project}/testing' cibuildwheel --output-dir wheelhouse .
     - task: PublishBuildArtifacts@1
       inputs: {pathtoPublish: 'wheelhouse'}
 - job: macos
@@ -16,9 +16,9 @@ jobs:
     - task: UsePythonVersion@0
     - bash: |
         python -m pip install --upgrade pip
-        #pip install cibuildwheel==0.12.0
-        pip install git+https://github.com/joerick/cibuildwheel.git
-        CIBW_TEST_REQUIRES=pytest CIBW_TEST_COMMAND='python -m pytest {project}/c {project}/testing' cibuildwheel --output-dir wheelhouse .
+        pip install cibuildwheel
+        #pip install git+https://github.com/joerick/cibuildwheel.git
+        CIBW_SKIP='pp*' CIBW_TEST_REQUIRES=pytest CIBW_TEST_COMMAND='python -m pytest {project}/c {project}/testing' cibuildwheel --output-dir wheelhouse .
     - task: PublishBuildArtifacts@1
       inputs: {pathtoPublish: 'wheelhouse'}
 - job: windows
@@ -29,10 +29,10 @@ jobs:
       displayName: Install Visual C++ for Python 2.7
     - bash: |
         python -m pip install --upgrade pip
-        #pip install cibuildwheel==0.12.0
-        pip install git+https://github.com/joerick/cibuildwheel.git
+        pip install cibuildwheel
+        #pip install git+https://github.com/joerick/cibuildwheel.git
         # takes far too long to run
         #CIBW_TEST_REQUIRES=pytest CIBW_TEST_COMMAND='python -m pytest {project}/c {project}/testing'
-        CIBW_TEST_REQUIRES=pytest CIBW_TEST_COMMAND='python -m pytest {project}/c' cibuildwheel --output-dir wheelhouse .
+        CIBW_SKIP='pp*' CIBW_TEST_REQUIRES=pytest CIBW_TEST_COMMAND='python -m pytest {project}/c' cibuildwheel --output-dir wheelhouse .
     - task: PublishBuildArtifacts@1
       inputs: {pathtoPublish: 'wheelhouse'}
