@@ -1,7 +1,5 @@
-dist: focal
-arch: arm64-graviton2
-virt: lxd
-group: edge
+arch: arm64
+os: linux
 language: python
 services:
   - docker
