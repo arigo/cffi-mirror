@@ -1,0 +1,196 @@
+variables:
+  # default cibuildwheel version; some targets will override inline
+  cibuildwheel_version: <2.0.0
+
+stages:
+  - stage: sdist
+    dependsOn: []
+    jobs:
+      - job: sdist
+        steps:
+          - task: UsePythonVersion@0
+
+          - bash: |
+              rm -rf dist/
+              python -m pip install build
+              python -m build --sdist
+            displayName: Build sdist
+
+          - task: PublishBuildArtifacts@1
+            displayName: Archive sdist artifact
+            inputs:
+              pathtoPublish: 'dist'
+
+  - stage: linux
+    dependsOn: []
+    jobs:
+    - job: linux
+      pool: {vmImage: 'Ubuntu-20.04'}
+      strategy:
+        matrix:
+          Python27_x86_64:
+            CIBW_BUILD: cp27-manylinux_x86_64
+          Python35_x86_64:
+            CIBW_BUILD: cp35-manylinux_x86_64
+          Python36_x86_64:
+            CIBW_BUILD: cp36-manylinux_x86_64
+          Python37_x86_64:
+            CIBW_BUILD: cp37-manylinux_x86_64
+          Python38_x86_64:
+            CIBW_BUILD: cp38-manylinux_x86_64
+          Python39_x86_64:
+            CIBW_BUILD: cp39-manylinux_x86_64
+          Python27_i686:
+            CIBW_BUILD: cp27-manylinux_i686
+          Python35_i686:
+            CIBW_BUILD: cp35-manylinux_i686
+          Python36_i686:
+            CIBW_BUILD: cp36-manylinux_i686
+          Python37_i686:
+            CIBW_BUILD: cp37-manylinux_i686
+          Python38_i686:
+            CIBW_BUILD: cp38-manylinux_i686
+          Python39_i686:
+            CIBW_BUILD: cp39-manylinux_i686
+          # FIXME: slow emulated builds; tests take ~45-60min to run
+          # Python36_aarch64:
+          #   CIBW_BUILD: cp36-manylinux_aarch64
+          # Python36_ppc64le:
+          #   CIBW_BUILD: cp36-manylinux_ppc64le
+          # Python36_s390x:
+          #   CIBW_BUILD: cp36-manylinux_s390x
+          # Python37_aarch64:
+          #   CIBW_BUILD: cp37-manylinux_aarch64
+          # Python37_ppc64le:
+          #   CIBW_BUILD: cp37-manylinux_ppc64le
+          # Python37_s390x:
+          #   CIBW_BUILD: cp37-manylinux_s390x
+          # Python38_aarch64:
+          #   CIBW_BUILD: cp38-manylinux_aarch64
+          # Python38_ppc64le:
+          #   CIBW_BUILD: cp38-manylinux_ppc64le
+          # Python38_s390x:
+          #   CIBW_BUILD: cp38-manylinux_s390x
+          # Python39_aarch64:
+          #   CIBW_BUILD: cp39-manylinux_aarch64
+          # Python39_ppc64le:
+          #   CIBW_BUILD: cp39-manylinux_ppc64le
+          # Python39_s390x:
+          #   CIBW_BUILD: cp39-manylinux_s390x
+
+      steps:
+        - task: UsePythonVersion@0
+
+        - bash: |
+            docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+          displayName: Enable docker foreign arch support
+          condition: not(or(contains(variables.CIBW_BUILD, 'x86_64'), contains(variables.CIBW_BUILD, 'i686')))
+
+        - bash: |
+            python -m pip install --upgrade pip
+            pip install "cibuildwheel$(cibuildwheel_version)"
+            CIBW_ARCHS_LINUX='auto aarch64 ppc64le s390x' CIBW_MANYLINUX_X86_64_IMAGE=manylinux1 CIBW_MANYLINUX_I686_IMAGE=manylinux1 CIBW_BEFORE_BUILD='yum install -y texinfo && curl -L -O https://github.com/libffi/libffi/archive/v3.2.1.tar.gz && tar zxf v3.2.1.tar.gz && cd libffi-3.2.1 && ./autogen.sh && ./configure && make && make install && ldconfig' CIBW_TEST_REQUIRES='pytest' CIBW_TEST_COMMAND='python -m pytest {project}/c {project}/testing' cibuildwheel --output-dir wheelhouse .
+          displayName: Build/test wheels
+
+        - task: PublishBuildArtifacts@1
+          displayName: Archive wheels
+          inputs:
+            pathtoPublish: 'wheelhouse'
+
+  - stage: macos
+    dependsOn: []
+    jobs:
+      - job: macos
+        pool: {vmImage: 'macOS-10.14'}
+        strategy:
+          matrix:
+            Python27_x86_64:
+              CIBW_BUILD: cp27-macosx_x86_64
+            Python35_x86_64:
+              CIBW_BUILD: cp35-macosx_x86_64
+            Python36_x86_64:
+              CIBW_BUILD: cp36-macosx_x86_64
+            Python37_x86_64:
+              CIBW_BUILD: cp37-macosx_x86_64
+            Python38_x86_64:
+              CIBW_BUILD: cp38-macosx_x86_64
+            Python39_x86_64:
+              CIBW_BUILD: cp39-macosx_x86_64
+        steps:
+          - task: UsePythonVersion@0
+
+          - bash: |
+              python -m pip install --upgrade pip
+              pip install "cibuildwheel$(cibuildwheel_version)"
+              CIBW_BEFORE_ALL_MACOS='brew uninstall --ignore-dependencies libffi' CIBW_TEST_REQUIRES=pytest CIBW_REPAIR_WHEEL_COMMAND_MACOS='delocate-listdeps {wheel} && (if [ `delocate-listdeps {wheel} | wc -l` -gt 0 ]; then exit 1; fi) && delocate-wheel --require-archs x86_64 -w {dest_dir} {wheel}' CIBW_TEST_COMMAND='python -m pytest {project}/c {project}/testing' cibuildwheel --output-dir wheelhouse .
+            displayName: Build/test wheels
+
+          - task: PublishBuildArtifacts@1
+            displayName: Archive wheels
+            inputs:
+              pathtoPublish: 'wheelhouse'
+
+  - stage: windows
+    dependsOn: []
+    jobs:
+      - job: windows
+        pool: {vmImage: 'vs2017-win2016'}
+        strategy:
+          matrix:
+            Python27_win_amd64:
+              CIBW_BUILD: cp27-win_amd64
+              # use old version of cibuildwheel for "real SDK" 2.7 support
+              cibuildwheel_version: ==1.10.0
+            Python35_win_amd64:
+              CIBW_BUILD: cp35-win_amd64
+            Python36_win_amd64:
+              CIBW_BUILD: cp36-win_amd64
+            Python37_win_amd64:
+              CIBW_BUILD: cp37-win_amd64
+            Python38_win_amd64:
+              CIBW_BUILD: cp38-win_amd64
+            Python39_win_amd64:
+              CIBW_BUILD: cp39-win_amd64
+            Python27_win32:
+              CIBW_BUILD: cp27-win32
+              # use old version of cibuildwheel for "real SDK" 2.7 support
+              cibuildwheel_version: ==1.10.0
+            Python35_win32:
+              CIBW_BUILD: cp35-win32
+            Python36_win32:
+              CIBW_BUILD: cp36-win32
+            Python37_win32:
+              CIBW_BUILD: cp37-win32
+            Python38_win32:
+              CIBW_BUILD: cp38-win32
+            Python39_win32:
+              CIBW_BUILD: cp39-win32
+        steps:
+          - task: UsePythonVersion@0
+
+          # HACK: MS killed this SDK support package and removed downloads, as did chocolatey, install from a private archive
+          - powershell: |
+              $msiPath = Join-Path ([IO.Path]::GetTempPath()) 'VCForPython27.msi'
+              [Net.WebClient]::new().DownloadFile('https://raw.githubusercontent.com/nitzmahone/VCPython27/master/VCForPython27.msi', $msiPath)
+              Start-Process -FilePath msiexec.exe -Wait -ArgumentList @(
+                  '/i',
+                  $msiPath,
+                  '/qn',
+                  '/norestart'
+              )
+            displayName: Install Python C++ build tools for Python 2.7
+            errorActionPreference: stop
+            condition: contains(variables.CIBW_BUILD, 'cp27')
+
+          - bash: |
+              python -m pip install --upgrade pip
+              pip install "cibuildwheel$(cibuildwheel_version)"
+              # FIXME: /testing takes ~45min on Windows and has some failures...
+              # CIBW_TEST_REQUIRES=pytest CIBW_TEST_COMMAND='python -m pytest {project}/c {project}/testing' cibuildwheel --output-dir wheelhouse .
+              CIBW_TEST_REQUIRES=pytest CIBW_TEST_COMMAND='python -m pytest {project}/c' cibuildwheel --output-dir wheelhouse .
+            displayName: Build/test wheels
+
+          - task: PublishBuildArtifacts@1
+            displayName: Archive wheels
+            inputs:
+              pathtoPublish: 'wheelhouse'

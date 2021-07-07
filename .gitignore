@@ -1,0 +1,5 @@
+build/
+cffi.egg-info/
+*.swp
+*.so
+
